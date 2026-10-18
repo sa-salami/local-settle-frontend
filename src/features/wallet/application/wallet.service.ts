@@ -1,5 +1,6 @@
 import { stellarWalletKitService } from "./stellar-wallet-kit.service";
 import { ApiError, apiFetch } from "@/lib/api";
+import { getConfiguredStellarNetwork } from "../config/stellar-network";
 
 // Última wallet usada
 const WALLET_ID_KEY = "wallet:provider";
@@ -109,8 +110,7 @@ export const walletService = {
     },
 
     getExpectedNetwork() {
-        const raw = (process.env.NEXT_PUBLIC_STELLAR_NETWORK || "testnet").toLowerCase();
-        return raw === "mainnet" || raw === "public" ? "mainnet" : "testnet";
+        return getConfiguredStellarNetwork();
     },
 
     async authenticate(publicKey: string): Promise<string> {
@@ -122,6 +122,12 @@ export const walletService = {
             let currentChallenge = "";
 
             try {
+            const walletId = localStorage.getItem(WALLET_ID_KEY);
+            if (!walletId) throw new Error("No wallet connected");
+            if (!stellarWalletKitService.supportsMessageSigning(walletId)) {
+                throw new Error("This wallet does not support SEP-43 message signing. Choose a wallet that supports message signing to sign in.");
+            }
+
                 const challengeResponse = await requestChallenge(publicKey);
                 currentChallenge = challengeResponse.challenge;
 

@@ -15,10 +15,10 @@ import type {
     StellarNetwork,
     DetectedStellarNetwork,
 } from "../types/wallet-network.types";
+import { getConfiguredStellarNetwork } from "../config/stellar-network";
 
 export function getExpectedStellarNetwork(): StellarNetwork {
-    const raw = (process.env.NEXT_PUBLIC_STELLAR_NETWORK || "testnet").toLowerCase();
-    return raw === "mainnet" || raw === "public" ? "mainnet" : "testnet";
+    return getConfiguredStellarNetwork();
 }
 
 export function getExpectedNetworkPassphrase(): Networks {
@@ -28,6 +28,7 @@ export function getExpectedNetworkPassphrase(): Networks {
 }
 
 let initialized = false;
+let messageSigningWalletIds = new Set<string>();
 
 function ensureInitialized(selectedWalletId?: string) {
     if (initialized) {
@@ -36,17 +37,23 @@ function ensureInitialized(selectedWalletId?: string) {
     }
 
     const network = getExpectedNetworkPassphrase();
+    const modules = [
+        new FreighterModule(),
+        new LobstrModule(),
+        new AlbedoModule(),
+        new xBullModule(),
+        new RabetModule(),
+        new HanaModule(),
+    ];
+    messageSigningWalletIds = new Set(
+        modules
+            .filter((module) => typeof module.signMessage === "function")
+            .map((module) => module.productId)
+    );
     StellarWalletsKit.init({
         network,
         selectedWalletId,
-        modules: [
-            new FreighterModule(),
-            new LobstrModule(),
-            new AlbedoModule(),
-            new xBullModule(),
-            new RabetModule(),
-            new HanaModule(),
-        ],
+        modules,
     });
     initialized = true;
 }
@@ -109,6 +116,11 @@ export const stellarWalletKitService = {
     getAddress,
 
     detectNetwork,
+
+    supportsMessageSigning(walletId: string): boolean {
+        ensureInitialized();
+        return messageSigningWalletIds.has(walletId);
+    },
 
     assertExpectedNetwork,
 
